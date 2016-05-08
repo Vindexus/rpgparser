@@ -1,0 +1,11 @@
+{
+  "name": "rpgparser",
+  "version": "1.0.0",
+  "description": "Parse your pen and paper RPG pages into website or InDesign files, with custom tags that are replaced with your game's skills, moves, items, stats, classes, etc.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
