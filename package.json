@@ -1,0 +1,67 @@
+{
+  "_args": [
+    [
+      "rpgparser@^1.0.1",
+      "D:\\github\\rpgparser-sample-game"
+    ]
+  ],
+  "_from": "rpgparser@>=1.0.1 <2.0.0",
+  "_id": "rpgparser@1.0.3",
+  "_inCache": true,
+  "_installable": true,
+  "_location": "/rpgparser",
+  "_nodeVersion": "4.2.1",
+  "_npmOperationalInternal": {
+    "host": "packages-12-west.internal.npmjs.com",
+    "tmp": "tmp/rpgparser-1.0.3.tgz_1462756360772_0.6358672922942787"
+  },
+  "_npmUser": {
+    "email": "vindexus@gmail.com",
+    "name": "vindexus"
+  },
+  "_npmVersion": "3.8.2",
+  "_phantomChildren": {},
+  "_requested": {
+    "name": "rpgparser",
+    "raw": "rpgparser@^1.0.1",
+    "rawSpec": "^1.0.1",
+    "scope": null,
+    "spec": ">=1.0.1 <2.0.0",
+    "type": "range"
+  },
+  "_requiredBy": [
+    "/"
+  ],
+  "_shasum": "8cf8654f668fe46f1e05cb3fad91f6a01be264fb",
+  "_shrinkwrap": null,
+  "_spec": "rpgparser@^1.0.1",
+  "_where": "D:\\github\\rpgparser-sample-game",
+  "author": "",
+  "dependencies": {
+    "jquery": "^2.2.3",
+    "jsdom": "^9.0.0"
+  },
+  "description": "Parse your pen and paper RPG pages into website or InDesign files, with custom tags that are replaced with your game's skills, moves, items, stats, classes, etc.",
+  "devDependencies": {},
+  "directories": {},
+  "dist": {
+    "shasum": "8cf8654f668fe46f1e05cb3fad91f6a01be264fb",
+    "tarball": "https://registry.npmjs.org/rpgparser/-/rpgparser-1.0.3.tgz"
+  },
+  "gitHead": "be23c4e281f8acab58b3da26b1c6ef73fca83149",
+  "license": "ISC",
+  "main": "index.js",
+  "maintainers": [
+    {
+      "email": "vindexus@gmail.com",
+      "name": "vindexus"
+    }
+  ],
+  "name": "rpgparser",
+  "optionalDependencies": {},
+  "readme": "ERROR: No README data found!",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "version": "1.0.3"
+}
