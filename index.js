@@ -1,7 +1,9 @@
 var fs = require("fs");
-var jquery = require("jQuery");
+var jquery = require('jquery');
 
 var factory = function(options) {
+  var env = require('jsdom').env;
+  var $;
   var defaults = {
     gameDataDir: '/gameData', //Where the game data is located
     pagesDir: '/page',
@@ -47,133 +49,153 @@ var factory = function(options) {
     return string.charAt(0).toUpperCase() + string.slice(1);
   }
 
-  function getTagObj(obj) {
+  function getTagPathData(obj) {
     var path = obj.attr("path");
-    return pathToObj(path);
+    return pathToData(path);
   }
 
-  function pathToObj(path) {
+  function getTagPathParsed(obj, parseType) {
+    return parsePageContent(getTagPathData(obj), parseType);
+  }
+
+  function pathToParsed(path, parseType) {
+    return parsePageContent(pathToData(path), parseType);
+  }
+
+  function pathToData(path) {
     path = path.replace(/(\[.*?\])/g, function(org, p1) {
       var datpath = p1.substr(1,p1.length-2);
-      var r = pathToObj(datpath);
+      var r = pathToData(datpath);
       return r;
     });
     var parts = path.split(".");
-    var obj = gameData[parts[0]];
+    var data = gameData[parts[0]];
     var len = parts.length;
 
     for(var i = 1; i < len; i++) {
-      if(!obj.hasOwnProperty(parts[i])) {
+      if(!data.hasOwnProperty(parts[i])) {
         return false;
       }
 
-      obj = obj[parts[i]];
+      data = data[parts[i]];
     }
-    return obj;
+    return data;
   }
 
-  function parsePageContent(pageContent, parseType, callback) {
-    var env = require('jsdom').env;
-    env(pageContent, function (errors, window) {
-      console.log(errors);
+  var manipulators = 0;
+  function getManipulater(content) {
+    var id = 'manipulator-' + manipulators;
 
-      var $ = require('jquery')(window);
-      var standardTags = ['name', 'description'];
+    manipulators++;
 
-      $('if').each(function () {
-        var $this = $(this);
-        var obj = getTagObj($this);
+    $('<div id="' + id + '"></div>').appendTo('body');
+    var manipulator = $('#' + id);
+    manipulator.html(content);
 
-        if(!obj) {
-          $this.remove();
-        }
-        else {
-          $this.replaceWith($this.html());
-        }
-      });
+    return manipulator;
+  }
 
-      for(var i in standardTags) {
-        var tag = standardTags[i];
-        $(tag).each(function () {
-          var $this = $(this);
-          var gameObj = getTagObj($this);
+  function parsePageContent(pageContent, parseType) {
+    var m = getManipulater(pageContent);
 
-          console.log("tag: " + tag + ", attr: " + $this.attr("path") + " should be " + gameObj[tag]);
+    var standardTags = ['name', 'description'];
 
-          $this.replaceWith('<span class="' + tag + '">' + gameObj[tag] + '</span>');
-        });
+    m.find('if').each(function () {
+      var $this = $(this);
+      var obj = getTagPathParsed($this);
 
-        $('[gamedata]').each(function () {
-          var $this = $(this);
-          var path = $this.attr('gamedata');
-          $this.removeAttr("gamedata");
-          $this.html(pathToObj(path));
-        });
+      if(!obj) {
+        $this.remove();
       }
-
-      $('gamedata').each(function () {
-        var $this = $(this);
-        var gamedata = getTagObj($this);
-        $this.replaceWith('<span>' + gamedata + '</span>');
-      });
-
-      if(parseType == 'web') {
-        $('[aid\\:pstyle],[aid\\:cstyle]').each(function () {
-          $(this).removeAttr('aid:pstyle').removeAttr('aid:cstyle');
-        });
+      else {
+        $this.replaceWith($this.html());
       }
-      else if(parseType == 'indesign') {
-        $('[class]').each(function () {
-          $(this).removeAttr('class');
-        });
-      }
-
-      $('script').remove();
-
-      var parsed = $('body').html();
-      callback(parsed);
     });
-    console.log('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~');
+
+    for(var i in standardTags) {
+      var tag = standardTags[i];
+      m.find(tag).each(function () {
+        var $this = $(this);
+        var gameObj = getTagPathData($this);
+        var content = parsePageContent(gameObj[tag], parseType);
+
+        console.log("tag: " + tag + ", attr: " + $this.attr("path") + " should be " + content);
+
+        $this.replaceWith('<span class="' + tag + '">' + content + '</span>');
+      });
+
+      m.find('[gamedata]').each(function () {
+        var $this = $(this);
+        var path = $this.attr('gamedata');
+        $this.removeAttr("gamedata");
+        $this.html(pathToParsed(path));
+      });
+    }
+
+    m.find('gamedata').each(function () {
+      var $this = $(this);
+      var gamedata = getTagPathParsed($this);
+      $this.replaceWith('<span>' + gamedata + '</span>');
+    });
+
+    if(parseType == 'web') {
+      m.find('[aid\\:pstyle],[aid\\:cstyle]').each(function () {
+        $(this).removeAttr('aid:pstyle').removeAttr('aid:cstyle');
+      });
+    }
+    else if(parseType == 'indesign') {
+      m.find('[class]').each(function () {
+        $(this).removeAttr('class');
+      });
+    }
+
+    m.find('script').remove();
+
+    var parsed = m.html();
+    return parsed;
   }
 
   function parsePageToFile(pageFile, parseType, destFile) {
-    var pageContent = fs.readFileSync(options.pagesDir + '/' + pageName, 'utf8');
-    parsePageContent(pageContent, parseType, function(parsedContent) {
-      try {
-        fs.writeFile(destFile, parsedContent, function(err, result) {
-          if(err) {
-            console.log(":(", err);
-          }
-          else {
-            console.log(pageFile + " parsed and saved into " + destFile);
-          }
-        });
-      }
-      catch(ex) {
-        console.error(ex);
-      }
-    });
-  }
-
-  //Let's go through all the pages that we can find and save them to XML and HTML files
-  if(options.pagesDir) {
-    var pages = fs.readdirSync(options.pagesDir);
-
-    for(var i in pages) {
-      var pageName = pages[i];
-      var pageLocation = options.pagesDir + '/' + pageName;
-      
-      if(options.outputWebDir) {
-        var webDest = options.outputWebDir + '/' + pageName + '.html';
-        parsePageToFile(pageLocation, 'web', webDest);
-      }
-
-      if(options.outputInDesignDir) {
-        var inDesignDest = options.outputInDesignDir + '/' + pageName + '.xml';
-        parsePageToFile(pageLocation, 'indesign', inDesignDest);
-      }
+    var pageContent = fs.readFileSync(pageFile, 'utf8');
+    var parsedContent = parsePageContent(pageContent, parseType);
+    try {
+      fs.writeFile(destFile, parsedContent, function(err, result) {
+        if(err) {
+          console.log(":(", err);
+        }
+        else {
+          console.log(pageFile + " parsed and saved into " + destFile);
+        }
+      });
+    }
+    catch(ex) {
+      console.error(ex);
     }
   }
+
+  env('', function(errors, window) {
+    $ = require('jquery')(window);
+    //Let's go through all the pages that we can find and save them to XML and HTML files
+    if(options.pagesDir) {
+      var pages = fs.readdirSync(options.pagesDir);
+
+      for(var i in pages) {
+        var pageName = pages[i];
+        var pageLocation = options.pagesDir + '/' + pageName;
+        
+        if(options.outputWebDir) {
+          var webDest = options.outputWebDir + '/' + pageName + '.html';
+          parsePageToFile(pageLocation, 'web', webDest);
+        }
+
+        if(options.outputInDesignDir) {
+          var inDesignDest = options.outputInDesignDir + '/' + pageName + '.xml';
+          parsePageToFile(pageLocation, 'indesign', inDesignDest);
+        }
+      }
+    }
+  });
+
 
   return {
     gameData: function () {
