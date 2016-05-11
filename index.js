@@ -10,10 +10,19 @@ var factory = function(options) {
     outputInDesignDir: false,
     outputWebDir: false,
     folders: [], //One file returning many objects
-    simples: [] //One file returning many objects
+    simples: [], //One file returning many objects
+    fileHeaders: {
+      indesign: '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n' + 
+        '<Root>',
+      web: ''
+    },
+    fileFooters: {
+      indesign: '</Root>',
+      web: ''
+    }
   };
-  var gameData = {};
-  
+
+  var gameData = {};  
   for(var key in defaults) {
     options[key] = options.hasOwnProperty(key) ? options[key] : defaults[key];
   }
@@ -55,11 +64,11 @@ var factory = function(options) {
   }
 
   function getTagPathParsed(obj, parseType) {
-    return parsePageContent(getTagPathData(obj), parseType);
+    return parseRPGText(getTagPathData(obj), parseType);
   }
 
   function pathToParsed(path, parseType) {
-    return parsePageContent(pathToData(path), parseType);
+    return parseRPGText(pathToData(path), parseType);
   }
 
   function pathToData(path) {
@@ -95,8 +104,8 @@ var factory = function(options) {
     return manipulator;
   }
 
-  function parsePageContent(pageContent, parseType) {
-    var m = getManipulater(pageContent);
+  function parseRPGText(rpgtext, parseType) {
+    var m = getManipulater(rpgtext);
 
     var standardTags = ['name', 'description'];
 
@@ -117,7 +126,7 @@ var factory = function(options) {
       m.find(tag).each(function () {
         var $this = $(this);
         var gameObj = getTagPathData($this);
-        var content = parsePageContent(gameObj[tag], parseType);
+        var content = parseRPGText(gameObj[tag], parseType);
 
         console.log("tag: " + tag + ", attr: " + $this.attr("path") + " should be " + content);
 
@@ -157,9 +166,10 @@ var factory = function(options) {
 
   function parsePageToFile(pageFile, parseType, destFile) {
     var pageContent = fs.readFileSync(pageFile, 'utf8');
-    var parsedContent = parsePageContent(pageContent, parseType);
+    var parsedText = parseRPGText(pageContent, parseType);
+    var newContent = options.fileHeaders[parseType] + parsedText + options.fileFooters[parseType];
     try {
-      fs.writeFile(destFile, parsedContent, function(err, result) {
+      fs.writeFile(destFile, newContent, function(err, result) {
         if(err) {
           console.log(":(", err);
         }
