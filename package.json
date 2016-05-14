@@ -1,0 +1,24 @@
+{
+  "author": "",
+  "dependencies": {
+    "jquery": "^2.2.3",
+    "jsdom": "^9.0.0"
+  },
+  "description": "Parse your pen and paper RPG pages into website or InDesign files, with custom tags that are replaced with your game's skills, moves, items, stats, classes, etc.",
+  "devDependencies": {},
+  "license": "ISC",
+  "main": "index.js",
+  "maintainers": [
+    {
+      "email": "vindexus@gmail.com",
+      "name": "vindexus"
+    }
+  ],
+  "name": "rpgparser",
+  "optionalDependencies": {},
+  "readme": "ERROR: No README data found!",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "version": "1.0.3"
+}
