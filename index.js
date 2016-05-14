@@ -1,13 +1,14 @@
 var fs = require('fs');
 var jquery = require('jquery');
+var pluralize = require('pluralize');
 
 var factory = function(options) {
   var env = require('jsdom').env;
   var $;
   var defaults = {
     gameDataDir: '/gameData', //Where the game data is located
-    pagesDir: '/page',
-    templatesDir: '/templates',
+    pagesDir: '/pages',
+    templatesDir: false,
     outputInDesignDir: false,
     outputWebDir: false,
     folders: [], //One file returning many objects
@@ -51,6 +52,7 @@ var factory = function(options) {
 
     for(var i in files) {
       var file = files[i];
+      console.log('Loading folder file: ' + folder + '/' + file)
       var key = file.substr(0,file.length-3);
       var path = options.gameDataDir + '/' + folder + '/' + file;
       try {
@@ -62,6 +64,8 @@ var factory = function(options) {
       catch(ex) {
         console.error("Error loading " + path, ex);
       }
+    }
+  }
 
   if(options.templatesDir) {
     var templates = fs.readdirSync(options.templatesDir);
@@ -89,13 +93,38 @@ var factory = function(options) {
     return string.charAt(0).toUpperCase() + string.slice(1);
   }
 
-  function getTagPathData(obj) {
-    var path = obj.attr('path');
+  function getElPath(el) {
+    var path = el.attr('path');
+
+    if(!path) {
+      console.log('OMG NO PATH', el);
+      var atts = el.mapAttributes();
+      console.log('atts', atts);
+      $.each(atts, function(name, value) {
+        name = pluralize(name);
+        console.log('name', name);
+        console.log('value', value);
+        if(gameData.hasOwnProperty[name]) {
+          path = name + '.' + value;
+          console.log('HURRAY!');
+          return false;
+        }
+        else {
+          console.log('GAMES DOESNT HAVE' + name);
+        }
+      });
+    }
+
+    return path;
+  }
+
+  function getElData(el) {
+    var path = getElPath(el);
     return pathToData(path);
   }
 
-  function getTagPathParsed(obj, parseType) {
-    return parseRPGText(getTagPathData(obj), parseType);
+  function getElPathParsed(el, parseType) {
+    return parseRPGText(getElData(el), parseType);
   }
 
   function pathToParsed(path, parseType) {
@@ -144,20 +173,22 @@ var factory = function(options) {
 
     var standardTags = ['name', 'description'];
 
+    console.log('++DOING IFS++');
     m.find('if').each(function () {
       var $this = $(this);
-      var obj = getTagPathParsed($this);
+      var obj = getElPathParsed($this);
 
       if(!obj) {
-        //logParse('if', $this.attr('path'), '', false);
+        logParse('if', $this.attr('path'), '', false);
         $this.remove();
       }
       else {
-        //logParse('if', $this.attr('path'), $this.html(), true);
+        logParse('if', $this.attr('path'), $this.html(), true);
         $this.replaceWith($this.html());
       }
     });
     
+    console.log('++DOING LOOPS++');
     m.find('loop').each(function () {
       var $this = $(this);
       var items = pathToData($this.attr('items'));
@@ -179,6 +210,7 @@ var factory = function(options) {
       $this.replaceWith(parsedItems.join($this.attr('glue')));
     });
 
+    console.log('++DOING TEMPLATES++');
     m.find('template').each(function () {
       var $this = $(this);
       var type = $this.attr('type');
@@ -193,6 +225,8 @@ var factory = function(options) {
       var attributes = [];
       var meta = [];
       $.each($this[0].attributes, function(index, attr) {
+        console.log('index', index);
+        console.log('attr', attr);
         if(attr.name != 'type') {
           attributes[attr.name] = attr.value;
           meta.push('{' + attr.name + ': "' + attr.value + '"}')
@@ -213,32 +247,38 @@ var factory = function(options) {
       $this.replaceWith(parsed);
     });
 
+    console.log('++DOING STANDARDS++');
     for(var i in standardTags) {
       var tag = standardTags[i];
       m.find(tag).each(function () {
         var $this = $(this);
-        var gameObj = getTagPathData($this);
+        console.log('this', $this[0].outerHTML);
+        console.log('gameObj', gameObj);
+        var gameObj = getElData($this);
         var parsed = parseRPGText(gameObj[tag], parseType);
 
-        //logParse(tag, $this.attr('path'), parsed);
+        logParse(tag, $this.attr('path'), parsed);
         $this.replaceWith('<span class="' + tag + '">' + parsed + '</span>');
       });
 
+    
+      console.log('++DOING GAMEDATA TAGS++');
       m.find('[gamedata]').each(function () {
         var $this = $(this);
         var path = $this.attr('gamedata');
         var parsed = pathToParsed(path);
-        //logParse('gamedata', $this.attr('gamedata'), parsed, 'attr');
+        logParse('gamedata', $this.attr('gamedata'), parsed, 'attr');
         $this.removeAttr('gamedata');
         $this.html(parsed);
       });
     }
 
+    console.log('++DOING GAMEDATA ELEMENTS++');
     m.find('gamedata').each(function () {
       var $this = $(this);
-      var parsed = getTagPathParsed($this);
+      var parsed = getElPathParsed($this);
       $this.replaceWith('<span>' + parsed + '</span>');
-      //logParse('gamedata', $this.attr('path'), parsed, 'element');
+      logParse('gamedata', $this.attr('path'), parsed, 'element');
     });
 
     if(parseType == 'web') {
@@ -288,6 +328,24 @@ var factory = function(options) {
 
   env('', function(errors, window) {
     $ = require('jquery')(window);
+
+
+    $.fn.mapAttributes = function(prefix) {
+      var maps = [];
+      $(this).each(function() {
+        var map = {};
+        for(var key in this.attributes) {
+          if(!isNaN(key)) {
+            if(!prefix || this.attributes[key].name.substr(0,prefix.length) == prefix) {
+              map[this.attributes[key].name] = this.attributes[key].value;
+            }
+          }
+        }
+        maps.push(map);
+      });
+      return (maps.length > 1 ? maps : maps[0]);
+    }
+
     //Let's go through all the pages that we can find and save them to XML and HTML files
     if(options.pagesDir) {
       var pages = fs.readdirSync(options.pagesDir);
