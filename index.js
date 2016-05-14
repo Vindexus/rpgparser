@@ -81,6 +81,10 @@ var factory = function(options) {
     var data = gameData[parts[0]];
     var len = parts.length;
 
+    if(data == undefined) {
+      console.error("Couldn't find data for path: " + path)
+    }
+
     for(var i = 1; i < len; i++) {
       if(!data.hasOwnProperty(parts[i])) {
         return false;
@@ -119,6 +123,24 @@ var factory = function(options) {
       else {
         $this.replaceWith($this.html());
       }
+    });
+    
+    m.find('loop').each(function () {
+      var $this = $(this);
+      var items = pathToData($this.attr('items'));
+      var parsedItems = [];
+      var rawItemText = $this.html();
+      console.log('rawItemText', rawItemText);
+
+      for(var i in items) {
+        var unparsed = $this.html();
+        console.log("item", items[i]);
+        unparsed = unparsed.split('{{item}}').join(items[i]);
+        console.log("unparsed", unparsed);
+        parsedItems.push(parseRPGText(unparsed));
+      }     
+
+      $this.replaceWith(parsedItems.join($this.attr("glue")));
     });
 
     for(var i in standardTags) {
