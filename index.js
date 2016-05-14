@@ -1,4 +1,4 @@
-var fs = require("fs");
+var fs = require('fs');
 var jquery = require('jquery');
 
 var factory = function(options) {
@@ -7,6 +7,7 @@ var factory = function(options) {
   var defaults = {
     gameDataDir: '/gameData', //Where the game data is located
     pagesDir: '/page',
+    templatesDir: '/templates',
     outputInDesignDir: false,
     outputWebDir: false,
     folders: [], //One file returning many objects
@@ -21,6 +22,7 @@ var factory = function(options) {
       web: ''
     }
   };
+  var templates = {};
 
   var gameData = {};  
   for(var key in defaults) {
@@ -48,10 +50,32 @@ var factory = function(options) {
       var key = file.substr(0,file.length-3);
       gameData[folder][key] = require(options.gameDataDir + '/' + folder + '/' + file);
 
-      if(!gameData[folder][key].hasOwnProperty("key")) {
+      if(!gameData[folder][key].hasOwnProperty('key')) {
         gameData[folder][key].key = key;
       }
     }
+  }
+
+  if(options.templatesDir) {
+    var templates = fs.readdirSync(options.templatesDir);
+
+    for(var i in templates) {
+      var templateFilename = templates[i];
+      var name = templateFilename.replace(/\.[^/.]+$/, "")
+      var templateLocation = options.templatesDir + '/' + templateFilename;
+      var content = fs.readFileSync(templateLocation, 'utf8');
+
+      templates[name] = content;
+      console.log('Loaded template: ' + name);
+    }
+  }
+
+  function logParse(type, from, to, meta) {
+    to = to == undefined ? '' : to;
+    meta = meta == undefined ? '' : meta;
+    to = to.length > 30 ? to.substr(0,27) + '...' : '';
+    to.split("\n", ' ');
+    console.log(type + '[' + from + ']' + (meta.length > 0 ? ('[' + meta + ']') : '') + ' => ' + to);
   }
 
   function capitalizeFirstLetter(string) {
@@ -59,7 +83,7 @@ var factory = function(options) {
   }
 
   function getTagPathData(obj) {
-    var path = obj.attr("path");
+    var path = obj.attr('path');
     return pathToData(path);
   }
 
@@ -77,12 +101,12 @@ var factory = function(options) {
       var r = pathToData(datpath);
       return r;
     });
-    var parts = path.split(".");
+    var parts = path.split('.');
     var data = gameData[parts[0]];
     var len = parts.length;
 
     if(data == undefined) {
-      console.error("Couldn't find data for path: " + path)
+      console.error('Couldn\'t find data for path: ' + path)
     }
 
     for(var i = 1; i < len; i++) {
@@ -101,7 +125,7 @@ var factory = function(options) {
 
     manipulators++;
 
-    $('<div id="' + id + '"></div>').appendTo('body');
+    $('<div id="' + id + '""></div>').appendTo('body');
     var manipulator = $('#' + id);
     manipulator.html(content);
 
@@ -118,9 +142,11 @@ var factory = function(options) {
       var obj = getTagPathParsed($this);
 
       if(!obj) {
+        //logParse('if', $this.attr('path'), '', false);
         $this.remove();
       }
       else {
+        //logParse('if', $this.attr('path'), $this.html(), true);
         $this.replaceWith($this.html());
       }
     });
@@ -130,17 +156,52 @@ var factory = function(options) {
       var items = pathToData($this.attr('items'));
       var parsedItems = [];
       var rawItemText = $this.html();
-      console.log('rawItemText', rawItemText);
+
+      console.log('Looping through ' + $this.attr('items'));
 
       for(var i in items) {
         var unparsed = $this.html();
-        console.log("item", items[i]);
         unparsed = unparsed.split('{{item}}').join(items[i]);
-        console.log("unparsed", unparsed);
         parsedItems.push(parseRPGText(unparsed));
       }     
 
-      $this.replaceWith(parsedItems.join($this.attr("glue")));
+      console.log('DONE LOOPING');
+
+      $this.replaceWith(parsedItems.join($this.attr('glue')));
+    });
+
+    m.find('template').each(function () {
+      var $this = $(this);
+      var type = $this.attr('type');
+
+      if(!templates.hasOwnProperty(type)) {
+        console.error('Template type not found: ' + type);
+        return;
+      }
+
+      var templateText = templates[type];
+
+      var attributes = [];
+      var meta = [];
+      $.each($this[0].attributes, function(index, attr) {
+        if(attr.name != 'type') {
+          attributes[attr.name] = attr.value;
+          meta.push('{' + attr.name + ': "' + attr.value + '"}')
+        }
+      });
+
+      for(var key in attributes) {
+        var val = attributes[key];
+        templateText = templateText.split('{{' + key + '}}').join(val);
+      }
+
+      var parsed = parseRPGText(templateText);
+
+      logParse('template', type, parsed, meta.join(","));
+
+      //console.log('template[' + type + '][' + attributes.join(',') + '] => ' + parsed);
+
+      $this.replaceWith(parsed);
     });
 
     for(var i in standardTags) {
@@ -148,25 +209,27 @@ var factory = function(options) {
       m.find(tag).each(function () {
         var $this = $(this);
         var gameObj = getTagPathData($this);
-        var content = parseRPGText(gameObj[tag], parseType);
+        var parsed = parseRPGText(gameObj[tag], parseType);
 
-        console.log("tag: " + tag + ", attr: " + $this.attr("path") + " should be " + content);
-
-        $this.replaceWith('<span class="' + tag + '">' + content + '</span>');
+        //logParse(tag, $this.attr('path'), parsed);
+        $this.replaceWith('<span class="' + tag + '">' + parsed + '</span>');
       });
 
       m.find('[gamedata]').each(function () {
         var $this = $(this);
         var path = $this.attr('gamedata');
-        $this.removeAttr("gamedata");
-        $this.html(pathToParsed(path));
+        var parsed = pathToParsed(path);
+        //logParse('gamedata', $this.attr('gamedata'), parsed, 'attr');
+        $this.removeAttr('gamedata');
+        $this.html(parsed);
       });
     }
 
     m.find('gamedata').each(function () {
       var $this = $(this);
-      var gamedata = getTagPathParsed($this);
-      $this.replaceWith('<span>' + gamedata + '</span>');
+      var parsed = getTagPathParsed($this);
+      $this.replaceWith('<span>' + parsed + '</span>');
+      //logParse('gamedata', $this.attr('path'), parsed, 'element');
     });
 
     if(parseType == 'web') {
@@ -193,10 +256,10 @@ var factory = function(options) {
     try {
       fs.writeFile(destFile, newContent, function(err, result) {
         if(err) {
-          console.log(":(", err);
+          console.log(':(', err);
         }
         else {
-          console.log(pageFile + " parsed and saved into " + destFile);
+          console.log(pageFile + ' parsed and saved into ' + destFile);
         }
       });
     }
@@ -227,7 +290,6 @@ var factory = function(options) {
       }
     }
   });
-
 
   return {
     gameData: function () {
