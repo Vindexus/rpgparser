@@ -38,6 +38,7 @@ var factory = function(options) {
     var key =  options.simples[i];
     console.log('Loading simple: ' + key);
     gameData[key] = require(options.gameDataDir + '\\' + key);
+    console.log('gamedata[' + key + ']', gameData[key]);
   }
 
   for(var i in options.folders) {
@@ -111,11 +112,10 @@ var factory = function(options) {
       console.log('OMG NO PATH');
       console.log('elhtml', el[0].outerHTML);
       var atts = el.mapAttributes();
-      console.log('atts', atts);
       $.each(atts, function(name, value) {
         name = pluralize(name);
-        if(gameData.hasOwnProperty[name]) {
-          console.log('found attr ' + name + ' with value ' + value + ' which is good at ' + gameData[name][value]);
+        if(gameData.hasOwnProperty(name)) {
+          console.log('found ' + name + ' in gameData');
           path = name + '.' + value;
           return path;
         }
@@ -146,15 +146,28 @@ var factory = function(options) {
 
   function getElData(el) {
     var path = getElPath(el);
-    return pathToData(path);
+    var data = pathToData(path);
+
+    if(!!data) {
+      return data;
+    }
+
+    el.replaceWith('ERROR LOADING: "' + path + '"');
+    return false;
   }
 
   function getElPathParsed(el, parseType) {
-    return parseRPGText(getElData(el), parseType);
+    return pathToParsed(getElPath(el), parseType);
   }
 
   function pathToParsed(path, parseType) {
-    return parseRPGText(pathToData(path), parseType);
+    var data = pathToData(path);
+
+    if(data == undefined) {
+      return '<span class="error">ERROR LOADING PATH: ' + path + '</span>';
+    }
+
+    return parseRPGText(data, parseType);
   }
 
   function pathToData(path) {
@@ -163,11 +176,13 @@ var factory = function(options) {
     var len = parts.length;
 
     if(data == undefined) {
-      console.error('Couldn\'t find data for path: ' + path)
+      console.error('Couldn\'t find data for path: ' + path[0])
+      return false;
     }
 
     for(var i = 1; i < len; i++) {
       if(!data.hasOwnProperty(parts[i])) {
+        console.error('Couldn\'t find data after going ' + i + ' deep into the parts ' + parts[i]);
         return false;
       }
 
@@ -192,8 +207,6 @@ var factory = function(options) {
   function parseRPGText(rpgtext, parseType) {
     var m = getManipulater(rpgtext);
     var standardTags = ['name', 'description']; //TODO: put these into the options
-
-    console.log('html before if', m.html());
 
     m.find('if').each(function (index) {
       if(index == 0) {
@@ -291,6 +304,11 @@ var factory = function(options) {
         }
         var $this = $(this);
         var gameObj = getElData($this);
+
+        if(!gameObj) {
+          return;
+        }
+
         var parsed = parseRPGText(gameObj[tag], parseType);
 
         logParse(tag, $this.attr('path'), parsed);
