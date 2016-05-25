@@ -105,10 +105,28 @@ var factory = function(options) {
     return string.charAt(0).toUpperCase() + string.slice(1);
   }
 
+  function parsePathSubPath(path) {
+    return path.replace(/(\[.*?\])/g, function(org, p1) {
+      var datpath = p1.substr(1,p1.length-2);
+      console.log('datpath', datpath);
+      var r = pathToData(datpath);
+
+      if(!r) {
+        console.error('Coulnt find data for path "' + datpath + '" inside relative path ' + path);
+      }
+
+      return r;
+    });
+  }
+
   function getElPath(el) {
     var path = el.attr('path');
 
     if(!path) {
+      if(el.attr('gamedata')) {
+        return el.attr('gamedata');
+      }
+
       console.log('OMG NO PATH');
       console.log('elhtml', el[0].outerHTML);
       var atts = el.mapAttributes();
@@ -121,17 +139,7 @@ var factory = function(options) {
         }
         else if(value.indexOf('[') >= 0) {
           console.log('found [, assuming this is a relative path: ' + value);
-          path = name + '.' + value.replace(/(\[.*?\])/g, function(org, p1) {
-            var datpath = p1.substr(1,p1.length-2);
-            console.log('datpath', datpath);
-            var r = pathToData(datpath);
-
-            if(!r) {
-              console.error('Coulnt find data for path "' + datpath + '" inside relative path ' + value);
-            }
-
-            return r;
-          });
+          path = name + '.' + parsePathSubPath(value)
 
           console.log('relative path after', path);
 
@@ -141,7 +149,7 @@ var factory = function(options) {
       });
     }
 
-    return path;
+    return parsePathSubPath(path);
   }
 
   function getElData(el) {
@@ -321,8 +329,7 @@ var factory = function(options) {
         console.log('++DOING GAMEDATA TAGS++ (' + m.find('[gamedata]').length + ' found)');
       }
       var $this = $(this);
-      var path = $this.attr('gamedata');
-      var parsed = pathToParsed(path);
+      var parsed = getElData($this);
       logParse('gamedata', $this.attr('gamedata'), parsed, 'attr');
       $this.removeAttr('gamedata');
       $this.html(parsed);
