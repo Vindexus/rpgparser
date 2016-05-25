@@ -60,6 +60,12 @@ var factory = function(options) {
       try {
         gameData[folder][key] = require(path);
 
+        if(typeof(gameData[folder][key]) == 'string') {
+          gameData[folder][key] = {
+            description: gameData[folder][key]
+          }
+        }
+
         //A file at moves/super_strike.js will have a key of super_strike unless you specify your own
         if(!gameData[folder][key].hasOwnProperty('key')) {
           gameData[folder][key].key = key;
