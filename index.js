@@ -1,10 +1,14 @@
 var fs = require('fs');
 var jquery = require('jquery');
 var pluralize = require('pluralize');
+var Mustache = require('mustache');
 
-var factory = function(options) {
+var factory = function(options, callback) {
   var env = require('jsdom').env;
   var $;
+  var gameData = {};
+  var templates = {};
+  
   var defaults = {
     gameDataDir: '/gameData', //Where the game data is located
     pagesDir: '/pages',
@@ -14,50 +18,151 @@ var factory = function(options) {
     folders: [], //One file returning many objects
     simples: [], //One file returning many objects
     fileHeaders: {
-      indesign: '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n' + 
-        '<Root>',
+      indesign: '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n',
       web: ''
     },
     fileFooters: {
-      indesign: '</Root>',
+      indesign: '',
       web: ''
     },
     classesToPstyle: {
-    }
-  };
-  var templates = {};
+    },
+    classToXml: {
 
-  var gameData = {};  
+    },
+    blank: '__________'
+  };
+
+  //Extra parsing based on parsing type
+  //web, indesign, etc
+  var typeParsers = {
+    web: function(text) {
+      var m = getManipulater(text);
+      m.find('[aid\\:pstyle],[aid\\:cstyle]').each(function () {
+        $(this).removeAttr('aid:pstyle').removeAttr('aid:cstyle');
+      });
+      return m.html();
+    },
+    indesign: function(text) {
+      var m = getManipulater(text);
+      m.find('br').remove();
+      m.find('[class]').each(function () {
+        var classStr = this.className;
+
+        console.log('CLASS', classStr);
+
+        if(options.classToXml.hasOwnProperty(classStr)) {
+          console.log('replace this class ' + classStr + ' with' + options.classToXml[classStr]);
+          var tag = options.classToXml[classStr];
+
+          if(tag == true) {
+            tag = classStr;
+          }
+
+          return $(this).replaceWith('<' + tag + '>' + $(this).html() + '</' + tag + '>');
+        }        
+
+        var classes = this.className.split(/\s+/);
+
+        for(var i in classes) {
+          var c = classes[i];
+          if(options.classesToPstyle.hasOwnProperty(c)) {
+            $(this).attr('aid:pstyle', options.classesToPstyle[c]);
+          }
+        }
+
+        $(this).removeAttr('class');
+      });
+
+      return m.html();
+    }
+  }
+
   for(var key in defaults) {
     options[key] = options.hasOwnProperty(key) ? options[key] : defaults[key];
   }
 
-  console.log(options);
-    
-  for(var i in options.simples) {
-    var key =  options.simples[i];
-    console.log('Loading simple: ' + key);
-    gameData[key] = require(options.gameDataDir + '\\' + key);
-    console.log('gamedata[' + key + ']', gameData[key]);
-  }
+  env('', function(errors, window) {
+    $ = require('jquery')(window);
 
-  for(var i in options.folders) {
-    var folder = options.folders[i];
-    console.log('Loading folder: ' + folder);
-    var objects = {};
-    var files = fs.readdirSync(options.gameDataDir + '\\' + folder);
 
-    if(!gameData.hasOwnProperty(folder)) {
-      gameData[folder] = {};  
+    $.fn.mapAttributes = function(prefix) {
+      var maps = [];
+      $(this).each(function() {
+        var map = {};
+        for(var key in this.attributes) {
+          if(!isNaN(key)) {
+            if(!prefix || this.attributes[key].name.substr(0,prefix.length) == prefix) {
+              map[this.attributes[key].name] = this.attributes[key].value;
+            }
+          }
+        }
+        maps.push(map);
+      });
+      return (maps.length > 1 ? maps : maps[0]);
     }
 
-    for(var i in files) {
-      var file = files[i];
-      console.log('Loading folder file: ' + folder + '/' + file)
-      var key = file.substr(0,file.length-3);
-      var path = options.gameDataDir + '/' + folder + '/' + file;
+    loadGameData();
+    loadTemplates();
+    callback();
+  });
 
-      try {
+  function _parsePagesTo (toOpts) {
+    var defaults = {
+      type: 'web',
+      extension: 'html'
+    }
+
+    for(var i in defaults) {
+      toOpts[i] = toOpts.hasOwnProperty(i) ? toOpts[i] : defaults[i];
+    }
+
+    //Let's go through all the pages that we can find and save them to XML and HTML files
+    if(options.pagesDir) {
+      var pages = fs.readdirSync(options.pagesDir);
+
+      for(var i in pages) {
+        var pageName = pages[i];
+
+        //Skip the _ ones
+        if(pageName.substr(0,1) == '_') {
+          continue;
+        }
+
+        var pageNoExt = pageName.replace(/\.[^/.]+$/, "")
+        var pageLocation = options.pagesDir + '/' + pageName;
+        
+        var dest = toOpts.to + '/' + pageNoExt + '.' + toOpts.extension;
+        parsePageToFile(pageLocation, dest, toOpts);
+
+      }
+    }    
+  };
+
+  loadGameData = function () {
+    for(var i in options.simples) {
+      var key =  options.simples[i];
+      console.log('Loading simple: ' + key);
+      gameData[key] = require(options.gameDataDir + '\\' + key);
+      console.log('gamedata[' + key + ']', gameData[key]);
+    }
+
+    for(var i in options.folders) {
+      var folder = options.folders[i];
+      console.log('Loading folder: ' + folder);
+      var objects = {};
+      var files = fs.readdirSync(options.gameDataDir + '\\' + folder);
+
+      if(!gameData.hasOwnProperty(folder)) {
+        gameData[folder] = {};  
+      }
+
+      for(var i in files) {
+        var file = files[i];
+        console.log('Loading folder file: ' + folder + '/' + file)
+        var key = file.substr(0,file.length-3);
+        var path = options.gameDataDir + '/' + folder + '/' + file;
+
         gameData[folder][key] = require(path);
 
         if(typeof(gameData[folder][key]) == 'string') {
@@ -79,23 +184,26 @@ var factory = function(options) {
           }).join(' ');
         }
       }
-      catch(ex) {
-        console.error('Error loading ' + path, ex);
-      }
     }
   }
+  
+  loadTemplates = function () {
+    templates = {};
+    if(options.templatesDir) {
+      var templateFiles = fs.readdirSync(options.templatesDir);
 
-  if(options.templatesDir) {
-    var templates = fs.readdirSync(options.templatesDir);
+      for(var i in templateFiles) {
+        var templateFilename = templateFiles[i];
+        var name = templateFilename.replace(/\.[^/.]+$/, "")
+        var templateLocation = options.templatesDir + '/' + templateFilename;
+        var content = fs.readFileSync(templateLocation, 'utf8');
 
-    for(var i in templates) {
-      var templateFilename = templates[i];
-      var name = templateFilename.replace(/\.[^/.]+$/, "")
-      var templateLocation = options.templatesDir + '/' + templateFilename;
-      var content = fs.readFileSync(templateLocation, 'utf8');
-
-      templates[name] = content;
-      console.log('Loaded template: ' + name);
+        templates[name] = content;
+        console.log('Loaded template: ' + name);
+      }
+    }
+    else {
+      console.log('No template folder specified.')
     }
   }
 
@@ -133,8 +241,6 @@ var factory = function(options) {
         return el.attr('gamedata');
       }
 
-      console.log('OMG NO PATH');
-      console.log('elhtml', el[0].outerHTML);
       var atts = el.mapAttributes();
       $.each(atts, function(name, value) {
         name = pluralize(name);
@@ -170,18 +276,18 @@ var factory = function(options) {
     return false;
   }
 
-  function getElPathParsed(el, parseType) {
-    return pathToParsed(getElPath(el), parseType);
+  function getElPathParsed(el, opts) {
+    return pathToParsed(getElPath(el), opts);
   }
 
-  function pathToParsed(path, parseType) {
+  function pathToParsed(path, opts) {
     var data = pathToData(path);
 
     if(data == undefined) {
       return '<span class="error">ERROR LOADING PATH: ' + path + '</span>';
     }
 
-    return parseRPGText(data, parseType);
+    return parseRPGText(data, opts);
   }
 
   function pathToData(path) {
@@ -218,7 +324,7 @@ var factory = function(options) {
     return manipulator;
   }
 
-  function parseRPGText(rpgtext, parseType) {
+  function parseRPGText(rpgtext, opts) {
     var m = getManipulater(rpgtext);
     var standardTags = ['name', 'description']; //TODO: put these into the options
 
@@ -227,7 +333,7 @@ var factory = function(options) {
         console.log('++DOING IFS++ (' + m.find('if').length + ' found)');
       }
       var $this = $(this);
-      var obj = getElPathParsed($this);
+      var obj = getElPathParsed($this, opts);
 
       if(!obj) {
         logParse('if', $this.attr('path'), '', 'false');
@@ -239,8 +345,6 @@ var factory = function(options) {
       }
     });
     
-    console.log('html AFTER if', m.html());
-
     m.find('loop').each(function (index) {
       if(index == 0) {
         console.log('++DOING LOOPS++ (' + m.find('loop').length + ' found)');
@@ -255,10 +359,17 @@ var factory = function(options) {
 
       for(var i in items) {
         var unparsed = $this.html();
+        var item = items[i];
         console.log("item", items[i]);
-        unparsed = unparsed.split('{{item}}').join(items[i]);
-        console.log("unparsed", unparsed);
-        parsedItems.push(parseRPGText(unparsed));
+        if(typeof(item) == 'string') {
+          unparsed = unparsed.split('__item__').join(item);
+        }
+        else {
+          for(var k in item) {
+            unparsed = unparsed.split('__item.' + k + '__').join(item[k]);
+          }
+        }
+        parsedItems.push(parseRPGText(unparsed, opts));
       }     
 
       var glue = $this.attr('glue') ? $this.attr('glue') : '';
@@ -298,10 +409,10 @@ var factory = function(options) {
 
       for(var key in templateVars) {
         var val = templateVars[key];
-        templateText = templateText.split('{{' + key + '}}').join(val);
+        templateText = templateText.split('__' + key + '__').join(val);
       }
 
-      var parsed = parseRPGText(templateText, parseType);
+      var parsed = parseRPGText(templateText, opts);
 
       logParse('template', type, parsed, meta.join(","));
 
@@ -323,7 +434,7 @@ var factory = function(options) {
           return;
         }
 
-        var parsed = parseRPGText(gameObj[tag], parseType);
+        var parsed = parseRPGText(gameObj[tag], opts);
 
         logParse(tag, $this.attr('path'), parsed);
         $this.replaceWith(parsed);
@@ -345,41 +456,45 @@ var factory = function(options) {
     m.find('gamedata').each(function () {
       console.log('++DOING GAMEDATA ELEMENTS++ (' + m.find('gamedata').length + ' found)');
       var $this = $(this);
-      var parsed = getElPathParsed($this);
+      var parsed = getElPathParsed($this, opts);
       $this.replaceWith(parsed);
       logParse('gamedata', $this.attr('path'), parsed, 'element');
     });
 
-    if(parseType == 'web') {
-      m.find('[aid\\:pstyle],[aid\\:cstyle]').each(function () {
-        $(this).removeAttr('aid:pstyle').removeAttr('aid:cstyle');
-      });
-    }
-    else if(parseType == 'indesign') {
-      m.find('[class]').each(function () {
-        var classes = this.className.split(/\s+/);
-
-        for(var i in classes) {
-          var c = classes[i];
-          if(options.classesToPstyle.hasOwnProperty(c)) {
-            $(this).attr('aid:pstyle', options.classesToPstyle[c]);
-          }
-        }
-
-        $(this).removeAttr('class');
-      });
-    }
+    m.find('blank').replaceWith(options.blank);
 
     m.find('script').remove();
 
+    if(opts.type) {
+      var qry = '[only-for][only-for!="' + opts.type + '"]';
+      console.log('qry', qry);
+      m.find(qry).remove();
+    }
+
     var parsed = m.html();
+
+    //This should be how you put in a lot of your data
+    //The jquery selector stuff above is legacy that I'm too lazy to completely remove because it works
+    //But the mustache stuff should eventually take over
+    parsed = mustacheText(parsed);
+
     return parsed;
   }
 
-  function parsePageToFile(pageFile, parseType, destFile) {
+  function mustacheText(text) {
+    return Mustache.render(text, gameData);
+  }
+
+  function parsePageToFile(pageFile, destFile, opts) {
     var pageContent = fs.readFileSync(pageFile, 'utf8');
-    var parsedText = parseRPGText(pageContent, parseType);
-    var newContent = options.fileHeaders[parseType] + parsedText + options.fileFooters[parseType];
+    var parsedText = parseRPGText(pageContent, opts);
+
+    if(typeof typeParsers[opts.type] == 'function') {
+      console.log('do extra parsing');
+      parsedText = typeParsers[opts.type](parsedText);
+    }
+
+    var newContent = options.fileHeaders[opts.type] + parsedText + options.fileFooters[opts.type];
     try {
       fs.writeFile(destFile, newContent, function(err, result) {
         if(err) {
@@ -395,56 +510,9 @@ var factory = function(options) {
     }
   }
 
-  env('', function(errors, window) {
-    $ = require('jquery')(window);
-
-
-    $.fn.mapAttributes = function(prefix) {
-      var maps = [];
-      $(this).each(function() {
-        var map = {};
-        for(var key in this.attributes) {
-          if(!isNaN(key)) {
-            if(!prefix || this.attributes[key].name.substr(0,prefix.length) == prefix) {
-              map[this.attributes[key].name] = this.attributes[key].value;
-            }
-          }
-        }
-        maps.push(map);
-      });
-      return (maps.length > 1 ? maps : maps[0]);
-    }
-
-    //Let's go through all the pages that we can find and save them to XML and HTML files
-    if(options.pagesDir) {
-      var pages = fs.readdirSync(options.pagesDir);
-
-      for(var i in pages) {
-        var pageName = pages[i];
-        var pageLocation = options.pagesDir + '/' + pageName;
-        
-        if(options.outputWebDir) {
-          var webDest = options.outputWebDir + '/' + pageName + '.html';
-          parsePageToFile(pageLocation, 'web', webDest);
-        }
-
-        if(options.outputInDesignDir) {
-          var inDesignDest = options.outputInDesignDir + '/' + pageName + '.xml';
-          parsePageToFile(pageLocation, 'indesign', inDesignDest);
-        }
-      }
-    }
-  });
-
   return {
-    gameData: function () {
-      return gameData;
-    },
-    parsePageToInDesign: function(page, callback) {
-      return parsePage(page, 'indesign', callback);
-    },
-    parsePageToWeb: function(page, callback) {
-      return pagePage(page, 'web', callback);
+    parsePagesTo: function (opts) {
+      return _parsePagesTo(opts);
     }
   };
 }
