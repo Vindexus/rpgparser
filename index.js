@@ -30,7 +30,8 @@ var factory = function(options, callback) {
     classToXml: {
 
     },
-    blank: '__________'
+    blank: '__________',
+    check: '__'
   };
 
   //Extra parsing based on parsing type
@@ -46,20 +47,21 @@ var factory = function(options, callback) {
     indesign: function(text) {
       var m = getManipulater(text);
       m.find('br').remove();
-      m.find('[class]').each(function () {
+
+      var classToXml = function() {
         var classStr = this.className;
 
-        console.log('CLASS', classStr);
-
         if(options.classToXml.hasOwnProperty(classStr)) {
-          console.log('replace this class ' + classStr + ' with' + options.classToXml[classStr]);
+          console.log('CLASS', classStr);
+          console.log('replace this element ' + classStr + ' with ' + options.classToXml[classStr]);
           var tag = options.classToXml[classStr];
-
-          if(tag == true) {
+          if(tag === true) {
             tag = classStr;
           }
-
-          return $(this).replaceWith('<' + tag + '>' + $(this).html() + '</' + tag + '>');
+          $(this).find('[class]').each(classToXml);
+          var replaceWith = '<' + tag + '>' + $(this).html() + '</' + tag + '>';
+          //console.log('replaceWith', replaceWith);
+          return $(this).replaceWith(replaceWith);
         }        
 
         var classes = this.className.split(/\s+/);
@@ -72,7 +74,11 @@ var factory = function(options, callback) {
         }
 
         $(this).removeAttr('class');
-      });
+      }
+
+      m.find('[class]').each(classToXml);
+
+      //console.log('m.html', m.html());
 
       return m.html();
     }
@@ -462,6 +468,7 @@ var factory = function(options, callback) {
     });
 
     m.find('blank').replaceWith(options.blank);
+    m.find('check').replaceWith(options.check);
 
     m.find('script').remove();
 
@@ -490,7 +497,6 @@ var factory = function(options, callback) {
     var parsedText = parseRPGText(pageContent, opts);
 
     if(typeof typeParsers[opts.type] == 'function') {
-      console.log('do extra parsing');
       parsedText = typeParsers[opts.type](parsedText);
     }
 
