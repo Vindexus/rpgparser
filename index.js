@@ -18,11 +18,11 @@ var factory = function(options, callback) {
     folders: [], //One file returning many objects
     simples: [], //One file returning many objects
     fileHeaders: {
-      indesign: '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n',
+      indesign: '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n<Root>',
       web: ''
     },
     fileFooters: {
-      indesign: '',
+      indesign: '</Root>',
       web: ''
     },
     classesToPstyle: {
@@ -52,8 +52,6 @@ var factory = function(options, callback) {
         var classStr = this.className;
 
         if(options.classToXml.hasOwnProperty(classStr)) {
-          console.log('CLASS', classStr);
-          console.log('replace this element ' + classStr + ' with ' + options.classToXml[classStr]);
           var tag = options.classToXml[classStr];
           if(tag === true) {
             tag = classStr;
@@ -77,6 +75,19 @@ var factory = function(options, callback) {
       }
 
       m.find('[class]').each(classToXml);
+
+      var toXmlAttr = function() {
+        var classStr = this.className;
+
+        var tag = $(this).attr('to-xml');
+        console.log('to-xml tag', tag);
+        $(this).find('[to-xml]').each(toXmlAttr);
+        var replaceWith = '<' + tag + '>' + $(this).html() + '</' + tag + '>';
+        //console.log('replaceWith', replaceWith);
+        return $(this).replaceWith(replaceWith);
+      }
+
+      m.find('[to-xml]').each(toXmlAttr);      
 
       //console.log('m.html', m.html());
 
@@ -150,7 +161,6 @@ var factory = function(options, callback) {
       var key =  options.simples[i];
       console.log('Loading simple: ' + key);
       gameData[key] = require(options.gameDataDir + '\\' + key);
-      console.log('gamedata[' + key + ']', gameData[key]);
     }
 
     for(var i in options.folders) {
@@ -191,6 +201,15 @@ var factory = function(options, callback) {
         }
       }
     }
+
+    if(options.saveGameDataTo) {
+      var json = JSON.stringify(gameData);
+      fs.writeFile(options.saveGameDataTo, json, function(err, result) {
+        if(err) {
+          console.error("Error saving gameData JSON: ", err);
+        }
+      });
+    }
   }
   
   loadTemplates = function () {
@@ -218,7 +237,7 @@ var factory = function(options, callback) {
     meta = meta == undefined ? '' : meta;
     to = to.length > 30 ? to.substr(0,27) + '...' : '';
     to.split("\n", ' ');
-    console.log(type + '[' + from + ']' + (meta.length > 0 ? ('[' + meta + ']') : '') + ' => ' + to);
+    //console.log(type + '[' + from + ']' + (meta.length > 0 ? ('[' + meta + ']') : '') + ' => ' + to);
   }
 
   function capitalizeFirstLetter(string) {
@@ -228,11 +247,10 @@ var factory = function(options, callback) {
   function parsePathSubPath(path) {
     return path.replace(/(\[.*?\])/g, function(org, p1) {
       var datpath = p1.substr(1,p1.length-2);
-      console.log('datpath', datpath);
       var r = pathToData(datpath);
 
       if(!r) {
-        console.error('Coulnt find data for path "' + datpath + '" inside relative path ' + path);
+        //console.error('Coulnt find data for path "' + datpath + '" inside relative path ' + path);
       }
 
       return r;
@@ -251,19 +269,15 @@ var factory = function(options, callback) {
       $.each(atts, function(name, value) {
         name = pluralize(name);
         if(gameData.hasOwnProperty(name)) {
-          console.log('found ' + name + ' in gameData');
           path = name + '.' + value;
           return path;
         }
         else if(value.indexOf('[') >= 0) {
-          console.log('found [, assuming this is a relative path: ' + value);
           path = name + '.' + parsePathSubPath(value)
 
-          console.log('relative path after', path);
 
           return path;
         }
-        console.log('no path found for attr ' + name + '=' + value)
       });
     }
 
@@ -302,13 +316,13 @@ var factory = function(options, callback) {
     var len = parts.length;
 
     if(data == undefined) {
-      console.error('Couldn\'t find data for path: ' + path[0])
+      //console.error('Couldn\'t find data for path: ' + path[0])
       return false;
     }
 
     for(var i = 1; i < len; i++) {
       if(!data.hasOwnProperty(parts[i])) {
-        console.error('Couldn\'t find data after going ' + i + ' deep into the parts ' + parts[i]);
+        //console.error('Couldn\'t find data after going ' + i + ' deep into the parts ' + parts[i]);
         return false;
       }
 
@@ -366,7 +380,6 @@ var factory = function(options, callback) {
       for(var i in items) {
         var unparsed = $this.html();
         var item = items[i];
-        console.log("item", items[i]);
         if(typeof(item) == 'string') {
           unparsed = unparsed.split('__item__').join(item);
         }
@@ -410,8 +423,6 @@ var factory = function(options, callback) {
           meta.push('{' + attr.name + ': "' + attr.value + '"}')
         }
       });
-
-      console.log('templateVariables', templateVars);
 
       for(var key in templateVars) {
         var val = templateVars[key];
@@ -474,8 +485,11 @@ var factory = function(options, callback) {
 
     if(opts.type) {
       var qry = '[only-for][only-for!="' + opts.type + '"]';
-      console.log('qry', qry);
       m.find(qry).remove();
+
+      m.find('[only-for="' + opts.type + '"]').each(function () {
+        $(this).removeAttr('only-for');
+      });
     }
 
     var parsed = m.html();
