@@ -1,9 +1,9 @@
 {
   "author": "",
   "dependencies": {
+    "handlebars": "^4.0.5",
     "jquery": "^2.2.3",
     "jsdom": "^9.0.0",
-    "mustache": "^2.2.1",
     "pluralize": "^2.0.0"
   },
   "description": "Parse your pen and paper RPG pages into website or InDesign files, with custom tags that are replaced with your game's skills, moves, items, stats, classes, etc.",

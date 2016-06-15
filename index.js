@@ -1,7 +1,7 @@
 var fs = require('fs');
 var jquery = require('jquery');
 var pluralize = require('pluralize');
-var Mustache = require('mustache');
+var Handlebars = require('handlebars');
 
 var factory = function(options, callback) {
   var env = require('jsdom').env;
@@ -30,9 +30,15 @@ var factory = function(options, callback) {
     classToXml: {
 
     },
+    pages: false,
     blank: '__________',
-    check: '__'
+    check: '__',
+    helpersFile: false //If this is a file it loads it
   };
+
+  for(var key in defaults) {
+    options[key] = options.hasOwnProperty(key) ? options[key] : defaults[key];
+  }
 
   //Extra parsing based on parsing type
   //web, indesign, etc
@@ -95,9 +101,6 @@ var factory = function(options, callback) {
     }
   }
 
-  for(var key in defaults) {
-    options[key] = options.hasOwnProperty(key) ? options[key] : defaults[key];
-  }
 
   env('', function(errors, window) {
     $ = require('jquery')(window);
@@ -136,13 +139,22 @@ var factory = function(options, callback) {
 
     //Let's go through all the pages that we can find and save them to XML and HTML files
     if(options.pagesDir) {
-      var pages = fs.readdirSync(options.pagesDir);
+      var pageFiles = fs.readdirSync(options.pagesDir);
 
-      for(var i in pages) {
-        var pageName = pages[i];
+      console.log('options.pages', options.pages);
+
+      for(var i in pageFiles) {
+        var pageName = pageFiles[i];
 
         //Skip the _ ones
         if(pageName.substr(0,1) == '_') {
+          continue;
+        }
+
+        //Skip ones not explicitly called (but only when some have been explicitly set)
+        //This is for debugging specific pages
+        if(options.pages && options.pages.indexOf(pageName) == -1) {
+          console.log('skip ' + pageName);
           continue;
         }
 
@@ -210,6 +222,11 @@ var factory = function(options, callback) {
         }
       });
     }
+
+    if(options.helpersFile) {
+      console.log('helpersFile', options.helpersFile);
+      require(options.helpersFile)(Handlebars, gameData)
+    }
   }
   
   loadTemplates = function () {
@@ -245,6 +262,9 @@ var factory = function(options, callback) {
   }
 
   function parsePathSubPath(path) {
+    if(path === undefined) {
+      return "";
+    }
     return path.replace(/(\[.*?\])/g, function(org, p1) {
       var datpath = p1.substr(1,p1.length-2);
       var r = pathToData(datpath);
@@ -291,6 +311,9 @@ var factory = function(options, callback) {
     if(!!data) {
       return data;
     }
+
+    console.log('path', path);
+    console.log('data', data);
 
     el.replaceWith('ERROR LOADING: "' + path + '"');
     return false;
@@ -373,7 +396,7 @@ var factory = function(options, callback) {
       var $this = $(this);
       var $items = $this.attr('items');
       var items = $items.indexOf(',') >= 0 ? $items.split(',') : pathToData($items); //Items is either a comma delimited list of strings, or a path to an array
-
+      var itemStr = $this.attr('itemStr') || '__item__'
       var parsedItems = [];
       var rawItemText = $this.html();
 
@@ -381,7 +404,7 @@ var factory = function(options, callback) {
         var unparsed = $this.html();
         var item = items[i];
         if(typeof(item) == 'string') {
-          unparsed = unparsed.split('__item__').join(item);
+          unparsed = unparsed.split(itemStr).join(item);
         }
         else {
           for(var k in item) {
@@ -497,13 +520,14 @@ var factory = function(options, callback) {
     //This should be how you put in a lot of your data
     //The jquery selector stuff above is legacy that I'm too lazy to completely remove because it works
     //But the mustache stuff should eventually take over
-    parsed = mustacheText(parsed);
+    parsed = handlebarsText(parsed);
 
     return parsed;
   }
 
-  function mustacheText(text) {
-    return Mustache.render(text, gameData);
+  function handlebarsText(text) {
+    var template = Handlebars.compile(text)
+    return template(gameData);
   }
 
   function parsePageToFile(pageFile, destFile, opts) {
