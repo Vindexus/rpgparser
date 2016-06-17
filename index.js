@@ -224,7 +224,6 @@ var factory = function(options, callback) {
     }
 
     if(options.helpersFile) {
-      console.log('helpersFile', options.helpersFile);
       require(options.helpersFile)(Handlebars, gameData)
     }
   }
@@ -312,9 +311,6 @@ var factory = function(options, callback) {
       return data;
     }
 
-    console.log('path', path);
-    console.log('data', data);
-
     el.replaceWith('ERROR LOADING: "' + path + '"');
     return false;
   }
@@ -373,7 +369,7 @@ var factory = function(options, callback) {
 
     m.find('if').each(function (index) {
       if(index == 0) {
-        console.log('++DOING IFS++ (' + m.find('if').length + ' found)');
+        //console.log('++DOING IFS++ (' + m.find('if').length + ' found)');
       }
       var $this = $(this);
       var obj = getElPathParsed($this, opts);
@@ -390,7 +386,7 @@ var factory = function(options, callback) {
     
     m.find('loop').each(function (index) {
       if(index == 0) {
-        console.log('++DOING LOOPS++ (' + m.find('loop').length + ' found)');
+        //console.log('++DOING LOOPS++ (' + m.find('loop').length + ' found)');
       }
 
       var $this = $(this);
@@ -425,7 +421,7 @@ var factory = function(options, callback) {
 
     m.find('template').each(function (index) {
       if(index == 0) {
-        console.log('++DOING TEMPLATES++ (' + m.find('template').length + ' found)');
+        //console.log('++DOING TEMPLATES++ (' + m.find('template').length + ' found)');
       }
 
       var $this = $(this);
@@ -465,7 +461,7 @@ var factory = function(options, callback) {
       var tag = standardTags[i];
       m.find(tag).each(function (index) {
         if(index == 0) {
-          console.log('++DOING STANDARD ' + tag + '++ (' + m.find(tag).length + ' found)');
+          //console.log('++DOING STANDARD ' + tag + '++ (' + m.find(tag).length + ' found)');
         }
         var $this = $(this);
         var gameObj = getElData($this);
@@ -483,7 +479,7 @@ var factory = function(options, callback) {
 
     m.find('[gamedata]').each(function (index) {
       if(index == 0) {
-        console.log('++DOING GAMEDATA TAGS++ (' + m.find('[gamedata]').length + ' found)');
+        //console.log('++DOING GAMEDATA TAGS++ (' + m.find('[gamedata]').length + ' found)');
       }
       var $this = $(this);
       var parsed = getElData($this);
@@ -494,7 +490,7 @@ var factory = function(options, callback) {
 
 
     m.find('gamedata').each(function () {
-      console.log('++DOING GAMEDATA ELEMENTS++ (' + m.find('gamedata').length + ' found)');
+      //console.log('++DOING GAMEDATA ELEMENTS++ (' + m.find('gamedata').length + ' found)');
       var $this = $(this);
       var parsed = getElPathParsed($this, opts);
       $this.replaceWith(parsed);
